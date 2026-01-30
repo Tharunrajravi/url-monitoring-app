@@ -1,0 +1,38 @@
+name: Deploy URL Monitoring App
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            if [ ! -d "url-monitoring-app" ]; then
+              git clone https://github.com/${{ github.repository }}.git
+            fi
+            cd url-monitoring-app
+            git pull
+
+            docker stop url-monitor || true
+            docker rm url-monitor || true
+
+            docker build -t url-monitoring-app .
+            docker run -d \
+              -p 80:5000 \
+              --restart unless-stopped \
+              --name url-monitor \
+              -e CHECK_INTERVAL=30 \
+              url-monitoring-app
